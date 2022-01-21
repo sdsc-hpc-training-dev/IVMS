@@ -22,7 +22,7 @@ module.exports = {
                 this.oauth2[doc.oauth2Info.provider].revoke(toRevoke),
                 doc.save(),
             ]).then(([revoked, saved]) => {
-                logger.debug(`Token revoked: `, revoked.value, `Saved doc: `, saved);
+                // logger.debug(`Token revoked: `, revoked.value, `Saved doc: `, saved);
                 res.status('200 OK');
             });
         });

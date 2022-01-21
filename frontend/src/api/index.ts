@@ -27,7 +27,7 @@ const API = new (class API {
     }
 
     promptLogin(provider: string) {
-        window.open(`${ENDPOINT}/login/${provider}`, '_blank', 'width=500,height=900');
+        window.open(`${ENDPOINT}/login/${provider}`, '_blank', 'width=400,height=600');
     }
 
     async logout() {

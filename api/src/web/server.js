@@ -51,12 +51,19 @@ module.exports = class WebServer {
             f.replace(publicRoot, '').replace(/\\/g, '/'),
         );
 
-        for await (const f of dir) {
-            this.buffers.set(f.replace(/\.html$/, '').replace(/\/index$/, '') || '/', {
-                mime: mime.lookup(f),
-                buffer: await fsp.readFile(path.resolve(publicRoot, ...f.split('/'))),
-            });
-        }
+        await Promise.all(
+            dir.map(async f => {
+                this.buffers.set(
+                    f.replace(/\.html$/, '').replace(/\/index$/, '') || '/',
+                    {
+                        mime: mime.lookup(f),
+                        buffer: await fsp.readFile(
+                            path.resolve(publicRoot, ...f.split('/')),
+                        ),
+                    },
+                );
+            }),
+        );
 
         if (!this.buffers.has('/')) {
             logger.warn('Main page NOT FOUND');
