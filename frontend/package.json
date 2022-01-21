@@ -11,6 +11,7 @@
     "author": "",
     "license": "ISC",
     "devDependencies": {
+        "@hookstate/core": "^3.0.13",
         "@swc/core": "^1.2.128",
         "@types/react": "^17.0.38",
         "gl-matrix": "^3.4.3",

@@ -3,6 +3,7 @@ const IVMSApp = require('./api/src/app');
 const logger = require('./api/src/modules/logger');
 
 const LogCollection = require('./api/src/schema/log');
+const UserCollection = require('./api/src/schema/user');
 
 const RL = require('readline').createInterface(process.stdin);
 

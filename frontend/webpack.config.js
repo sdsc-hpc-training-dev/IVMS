@@ -21,7 +21,19 @@ module.exports = {
                         jsc: {
                             parser: {
                                 syntax: 'typescript',
+                                tsx: true,
                             },
+                            transform: {
+                                react: {
+                                    pragma: 'React.createElement',
+                                    pragmaFrag: 'React.Fragment',
+                                    throwIfNamespace: true,
+                                    development: false,
+                                    useBuiltins: false,
+                                    runtime: 'automatic',
+                                },
+                            },
+                            target: 'es2020',
                         },
                     },
                 },

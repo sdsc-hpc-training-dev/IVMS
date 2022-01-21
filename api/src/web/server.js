@@ -4,6 +4,8 @@ const path = require('path');
 const mime = require('mime-types');
 const logger = require('../modules/logger');
 const mg = require('mongoose');
+const UserCollection = require('../schema/user');
+const { validateToken } = require('../util/provision');
 
 /** @param {string} dir */
 const walkDir = async dir => {
@@ -96,6 +98,17 @@ module.exports = class WebServer {
         res.end();
     }
 
+    /**
+     * @param {uWSRes} res
+     * @param {uWSReq} req
+     */
+    ip(res, req) {
+        return (
+            req.getHeader('cf-connecting-ip') ||
+            Buffer.from(res.getRemoteAddressAsText()).toString()
+        );
+    }
+
     async init() {
         await this.reloadStaticFiles();
 
@@ -127,18 +140,55 @@ module.exports = class WebServer {
 
             for (const file of await walkDir(path.resolve(__dirname, '..', 'routes'))) {
                 try {
-                    /** @type {APIEndpoint} */
-                    const route = require(file);
-                    this.listener[route.method || 'get'](
-                        route.path,
-                        route.handle.bind(this.app),
-                    );
+                    /** @type {APIEndpoint | APIEndpoint[]} */
+                    const m = require(file);
+                    const routes = Array.isArray(m) ? m : [m];
+                    for (const route of routes) {
+                        if (route.auth) {
+                            this.listener.options(route.path, (res, req) => {
+                                this.cors(res, req.getHeader('origin'));
+                                this.preflight(res);
+                            });
+                        }
+
+                        this.listener[route.method || 'get'](route.path, (res, req) => {
+                            const origin = req.getHeader('origin');
+                            res.onAborted(() => (res.aborted = true));
+
+                            res.status = status => {
+                                this.cors(res, origin);
+                                res.cork(() => res.writeStatus(status).end());
+                            };
+
+                            res.json = data => {
+                                if (res.aborted) return;
+                                this.cors(res, origin);
+                                res.cork(() =>
+                                    res
+                                        .writeHeader('Content-Type', 'application/json')
+                                        .end(JSON.stringify(data)),
+                                );
+                            };
+
+                            if (route.auth) {
+                                const token = req
+                                    .getHeader('authorization')
+                                    .split(' ')?.[1];
+                                res.userPromise = validateToken(token)
+                                    ? UserCollection.findByToken(token)
+                                    : Promise.resolve(null);
+                            }
+
+                            route.handle.bind(this.app)(res, req);
+                        });
+                    }
                 } catch (e) {
                     logger.error(`Failed to bind route module at "${file}"`);
                 }
             }
 
             this.listener.get('/*', this.serveStaticFiles.bind(this));
+
             this.listener.listen(this.options.host, this.options.port, sock => {
                 this.sock = sock;
                 sock
@@ -152,6 +202,23 @@ module.exports = class WebServer {
         });
 
         logger.info(`Webserver listening on ${this.options.host}:${this.options.port}`);
+    }
+
+    /** @param {uWSRes} res */
+    cors(res, origin = '') {
+        const value = origin.startsWith('http://localhost')
+            ? origin
+            : this.options.domain || origin;
+
+        res.writeHeader('Access-Control-Allow-Origin', value);
+        res.writeHeader('Access-Control-Allow-Credentials', 'true');
+    }
+
+    /** @param {uWSRes} res */
+    preflight(res, options = 'GET, OPTIONS') {
+        res.writeHeader('Access-Control-Allow-Methods', options);
+        res.writeHeader('Access-Control-Allow-Headers', 'Authorization');
+        res.end();
     }
 
     async close() {

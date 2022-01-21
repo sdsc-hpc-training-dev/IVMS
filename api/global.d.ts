@@ -40,20 +40,24 @@ interface AppConfig {
 
 type App = import('./src/app');
 
-type uWSRes = import('uWebSockets.js').HttpResponse & { aborted: boolean };
+type uWSRes = import('uWebSockets.js').HttpResponse & {
+    aborted: boolean;
+    userPromise?: Promise<import('mongoose').Document<{}, {}, UserEntry> & UserEntry>;
+    status: (status: string) => void;
+    json: (data) => void;
+};
+
 type uWSReq = import('uWebSockets.js').HttpRequest;
 type uWSCxt = import('uWebSockets.js').us_socket_context_t;
 
 type APIEndpoint = {
+    auth?: boolean;
     method?: 'get' | 'post' | 'patch' | 'put' | 'del' | 'any';
     path: string;
-    handle: (
-        this: App,
-        res: import('uWebSockets.js').HttpResponse,
-        req: import('uWebSockets.js').HttpRequest,
-    ) => void;
+    handle: (this: App, res: uWSRes, req: uWSReq) => void;
 };
 
+type OAuth2Provider = 'google';
 type UserRole = 'admin' | 'manager' | 'moderator' | 'user';
 
 interface LogEntry {
@@ -67,14 +71,33 @@ interface OAuth2StateEntry {
     ip: string;
     redirect: string;
     expire: Date;
+    provider: OAuth2Provider;
 }
 
-interface UserEntry {
-    name: string;
-    about: string;
-    token: string;
-    oauth2ID: string;
+interface OAuth2Info {
+    id: string;
+    ip: string;
+    public: boolean;
+    email: string;
+    verified: string;
+    org: string;
+    profile: string;
+    provider: OAuth2Provider;
+    cacheTime: Date;
+}
+
+interface OAuth2Cred {
     oauth2Token: string;
     oauth2Refresh: string;
-    role: UserRole;
 }
+
+type UserEntry = {
+    token: string;
+    // First party info
+    name: string;
+    about: string;
+    role: UserRole;
+
+    // Third party info
+    oauth2Info: OAuth2Info;
+} & OAuth2Cred;
