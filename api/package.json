@@ -10,6 +10,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "joi": "^17.5.0",
     "mime-types": "^2.1.34",
     "mongoose": "^6.1.6",
     "node-fetch": "^2.6.7",

@@ -42,19 +42,37 @@ type App = import('./src/app');
 
 type uWSRes = import('uWebSockets.js').HttpResponse & {
     aborted: boolean;
+};
+
+type ResProxy<T = Uint8Array> = {
+    ip: string;
     userPromise?: Promise<import('mongoose').Document<{}, {}, UserEntry> & UserEntry>;
+    bodyPromise?: Promise<T>;
     status: (status: string) => void;
-    json: (data) => void;
+    buffer: (
+        data: import('uWebSockets.js').RecognizedString,
+        status?: string,
+        type?: string,
+    ) => void;
+    json: (data, status: string) => void;
+    redirect: (to: string) => void;
 };
 
 type uWSReq = import('uWebSockets.js').HttpRequest;
 type uWSCxt = import('uWebSockets.js').us_socket_context_t;
 
-type APIEndpoint = {
+type APIEndpoint<T = Uint8Array> = {
     auth?: boolean;
-    method?: 'get' | 'post' | 'patch' | 'put' | 'del' | 'any';
+    method?: 'get' | 'post' | 'patch' | 'put' | 'del' | 'any' | 'options';
     path: string;
-    handle: (this: App, res: uWSRes, req: uWSReq) => void;
+    defaultResType?: string;
+    body?: {
+        limit: number;
+        optional?: boolean;
+        timeout?: number;
+        jsonSchema?: import('joi').Schema<T>;
+    };
+    handle: (this: App, res: ResProxy<T>, req: uWSReq) => void;
 };
 
 type OAuth2Provider = 'google';

@@ -1,4 +1,5 @@
 interface PublicUserProfile {
+    id: string;
     public: boolean;
     name: string;
     profile: string;
@@ -8,3 +9,7 @@ interface PublicUserProfile {
 type PrivateUserProfile = {
     email: string;
 } & PublicUserProfile;
+
+declare module '*.svg';
+
+declare module '*.css';

@@ -4,8 +4,7 @@ const path = require('path');
 const mime = require('mime-types');
 const logger = require('../modules/logger');
 const mg = require('mongoose');
-const UserCollection = require('../schema/user');
-const { validateToken } = require('../util/provision');
+const restAddon = require('../util/rest-addon');
 
 /** @param {string} dir */
 const walkDir = async dir => {
@@ -76,33 +75,22 @@ module.exports = class WebServer {
      * @param {uWSReq} req
      */
     serveStaticFiles(res, req) {
-        const url = req.getUrl();
+        const entry = this.buffers.get(req.getUrl());
 
-        if (this.buffers.has(url)) {
-            const { mime, buffer } = this.buffers.get(url);
+        if (entry) {
+            const { mime, buffer } = entry;
             if (mime) res.writeHeader('content-type', mime);
-
-            // res.writeHeader(
-            //     'Access-Control-Allow-Origin',
-            //     this.getCORSHeader(req.getHeader('origin')),
-            // );
-            // res.writeHeader('Cross-Origin-Opener-Policy', 'same-origin');
-            // res.writeHeader('Cross-Origin-Embedder-Policy', 'require-corp');
-
             if (mime === 'text/html') {
                 res.writeHeader('cache-control', 's-maxage=0,max-age=60');
             } else {
                 res.writeHeader('cache-control', 's-maxage=86400,max-age=86400');
             }
             res.end(buffer);
-        } else this.redirect(res);
-    }
-
-    /** @param {uWSRes} res */
-    redirect(res, to = '/') {
-        res.writeStatus('302');
-        res.writeHeader('location', to);
-        res.end();
+        } else {
+            res.writeStatus('302');
+            res.writeHeader('location', '/');
+            res.end();
+        }
     }
 
     /**
@@ -147,48 +135,7 @@ module.exports = class WebServer {
 
             for (const file of await walkDir(path.resolve(__dirname, '..', 'routes'))) {
                 try {
-                    /** @type {APIEndpoint | APIEndpoint[]} */
-                    const m = require(file);
-                    const routes = Array.isArray(m) ? m : [m];
-                    for (const route of routes) {
-                        if (route.auth) {
-                            this.listener.options(route.path, (res, req) => {
-                                this.cors(res, req.getHeader('origin'));
-                                this.preflight(res);
-                            });
-                        }
-
-                        this.listener[route.method || 'get'](route.path, (res, req) => {
-                            const origin = req.getHeader('origin');
-                            res.onAborted(() => (res.aborted = true));
-
-                            res.status = status => {
-                                this.cors(res, origin);
-                                res.cork(() => res.writeStatus(status).end());
-                            };
-
-                            res.json = data => {
-                                if (res.aborted) return;
-                                this.cors(res, origin);
-                                res.cork(() =>
-                                    res
-                                        .writeHeader('Content-Type', 'application/json')
-                                        .end(JSON.stringify(data)),
-                                );
-                            };
-
-                            if (route.auth) {
-                                const token = req
-                                    .getHeader('authorization')
-                                    .split(' ')?.[1];
-                                res.userPromise = validateToken(token)
-                                    ? UserCollection.findByToken(token)
-                                    : Promise.resolve(null);
-                            }
-
-                            route.handle.bind(this.app)(res, req);
-                        });
-                    }
+                    this.registerRoute(file);
                 } catch (e) {
                     logger.error(`Failed to bind route module at "${file}"`);
                 }
@@ -209,6 +156,51 @@ module.exports = class WebServer {
         });
 
         logger.info(`Webserver listening on ${this.options.host}:${this.options.port}`);
+    }
+
+    /** @param {string} file */
+    registerRoute(file) {
+        /** @type {APIEndpoint | APIEndpoint[]} */
+        const m = require(file);
+        const routes = Array.isArray(m) ? m : [m];
+
+        if (routes.some(r => r.auth)) {
+            const path = routes[0].path;
+            if (routes.some(r => r.path !== path)) {
+                throw "Auth routes' paths within same file must be the same!";
+            }
+
+            if (!routes.some(r => r.method === 'options')) {
+                /** @type {string} */
+                const methods = routes.map(
+                    r =>
+                        ({
+                            get: 'GET',
+                            del: 'DELETE',
+                            post: 'POST',
+                            patch: 'PATCH',
+                            put: 'PUT',
+                        }[r.method || 'get']),
+                );
+                const options = methods.concat(['OPTIONS']).join(', ');
+
+                this.listener.options(path, (res, req) => {
+                    this.cors(res, req.getHeader('origin'));
+                    this.preflight(res, options);
+                });
+            }
+        }
+
+        for (const route of routes) {
+            // Function binding hell
+            this.listener[route.method || 'get'](route.path, restAddon(route).bind(this));
+
+            logger.debug(
+                `Registered route: ${(route.method || 'get').toUpperCase()} ${
+                    route.path
+                }`,
+            );
+        }
     }
 
     /** @param {uWSRes} res */

@@ -38,20 +38,16 @@ module.exports = [
     {
         method: 'get',
         path: '/api/login/:provider',
-        handle: function (res, req) {
+        handle: function (proxy, req) {
             const provider = req.getParameter(0);
 
             if (!this.oauth2.hasOwnProperty(provider)) {
-                res.writeStatus('404').end();
+                proxy.status('404 Not Found');
             } else {
-                const ip = this.server.ip(res, req);
                 const redirect = this.oauth2[provider].redirect;
 
-                OAuth2StateCollection.push(ip, provider, null).then(state => {
-                    if (res.aborted) return;
-                    res.cork(() => {
-                        this.server.redirect(res, `${redirect}&state=${state}`);
-                    });
+                OAuth2StateCollection.push(proxy.ip, provider, null).then(state => {
+                    proxy.redirect(`${redirect}&state=${state}`);
                 });
             }
         },
@@ -59,48 +55,45 @@ module.exports = [
     {
         method: 'get',
         path: '/api/login/callback/:provider',
-        handle: function (res, req) {
+        defaultResType: 'text/html; charset=utf-8',
+        handle: function (proxy, req) {
             const providerName = req.getParameter(0);
 
             if (!this.oauth2.hasOwnProperty(providerName)) {
-                res.writeStatus('404').end();
+                proxy.status('404 Not Found');
             } else {
-                const ip = this.server.ip(res, req);
+                const ip = proxy.ip;
                 const code = req.getQuery('code');
                 const provider = this.oauth2[providerName];
 
                 OAuth2StateCollection.pull(req.getQuery('state'))
                     .then(async state => {
-                        if (res.aborted) return;
-
                         if (!state) {
-                            res.cork(() => {
-                                res.writeStatus('400').end(ABORT_SCRIPT('unknown state'));
-                            });
-                            return;
+                            return proxy.buffer(
+                                ABORT_SCRIPT('unknown state'),
+                                '400 Bad Request',
+                            );
                         }
 
                         if (state.expire <= new Date()) {
-                            res.cork(() => {
-                                res.writeStatus('400').end(ABORT_SCRIPT('login timeout'));
-                            });
-                            return;
+                            return proxy.buffer(
+                                ABORT_SCRIPT('login timeout'),
+                                '400 Bad Request',
+                            );
                         }
 
                         if (state.provider !== providerName) {
-                            res.cork(() => {
-                                res.writeStatus('400').end(
-                                    ABORT_SCRIPT('provider mismatch'),
-                                );
-                            });
-                            return;
+                            return proxy.buffer(
+                                ABORT_SCRIPT('provider mismatch'),
+                                '400 Bad Request',
+                            );
                         }
 
                         if (state.ip !== ip) {
-                            res.cork(() => {
-                                res.writeStatus('400').end(ABORT_SCRIPT('ip mismatch'));
-                            });
-                            return;
+                            return proxy.buffer(
+                                ABORT_SCRIPT('ip mismatch'),
+                                '400 Bad Request',
+                            );
                         }
 
                         const cred = await provider.exchange(code, false);
@@ -114,18 +107,11 @@ module.exports = [
                             info,
                         );
 
-                        if (res.aborted) return;
-
-                        res.cork(() => {
-                            res.writeStatus('200').end(
-                                SUCCESS_SCRIPT(doc.token, res.redirect),
-                            );
-                        });
+                        proxy.buffer(SUCCESS_SCRIPT(doc.token, state.redirect));
                     })
                     .catch(e => {
-                        if (res.aborted) return;
                         logger.error(`LoginCallbackError(provider=${provider})`, e);
-                        res.writeStatus('500').end();
+                        proxy.status('500 Internal Error');
                     });
             }
         },

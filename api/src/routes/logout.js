@@ -5,11 +5,10 @@ module.exports = {
     auth: true,
     method: 'get',
     path: '/api/logout',
-    handle: function (res, _) {
-        res.userPromise.then(doc => {
-            if (res.aborted) return;
+    handle: function (proxy, _) {
+        proxy.userPromise.then(doc => {
             if (!doc || !this.oauth2.hasOwnProperty(doc.oauth2Info.provider)) {
-                res.status('400 Bad Request');
+                proxy.status('400 Bad Request');
                 return;
             }
             const toRevoke = doc.oauth2Token;
@@ -23,7 +22,7 @@ module.exports = {
                 doc.save(),
             ]).then(([revoked, saved]) => {
                 // logger.debug(`Token revoked: `, revoked.value, `Saved doc: `, saved);
-                res.status('200 OK');
+                proxy.status('200 OK');
             });
         });
     },
