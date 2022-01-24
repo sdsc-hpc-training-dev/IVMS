@@ -1,10 +1,10 @@
+import { RootStore } from '../stores/store';
+
 const ENDPOINT = 'http://localhost:8080/api';
 const KEY = 'iv-token';
 
-import { createState, State } from '@hookstate/core';
-
 const API = new (class API {
-    me: State<PrivateUserProfile>;
+    private prompt: Window = null;
 
     constructor() {
         window.addEventListener('message', (e: MessageEvent<{ token?: string }>) => {
@@ -13,9 +13,8 @@ const API = new (class API {
                 this.fetchMe();
             }
         });
-        if (this.token) this.fetchMe();
 
-        this.me = createState<PrivateUserProfile>(null);
+        this.autoLogin();
     }
 
     private get token() {
@@ -26,33 +25,48 @@ const API = new (class API {
         t ? localStorage.setItem(KEY, t) : localStorage.removeItem(KEY);
     }
 
+    private autoLogin() {
+        return this.token && this.fetchMe();
+    }
+
     promptLogin(provider: string) {
-        window.open(`${ENDPOINT}/login/${provider}`, '_blank', 'width=400,height=600');
+        if (this.prompt && !this.prompt.closed) {
+            this.prompt.focus();
+            return;
+        }
+        this.prompt = window.open(
+            `${ENDPOINT}/login/${provider}`,
+            '_blank',
+            'width=400,height=600',
+        );
     }
 
     async logout() {
         const res = await fetch(`${ENDPOINT}/logout`, {
             headers: {
-                Authorization: `IVMS ${this.token}`,
+                Authorization: this.token,
             },
-            credentials: 'include',
         });
 
         if (!res.ok) console.log('Logout failed:', res.status);
 
         this.token = null;
-        this.me.set(null);
+        RootStore.onLogout();
     }
 
     async fetchMe() {
         const res = await fetch(`${ENDPOINT}/me`, {
             headers: {
-                Authorization: `IVMS ${this.token}`,
+                Authorization: this.token,
             },
-            credentials: 'include',
         });
 
-        this.me.set(await res.json());
+        if (res.ok) {
+            RootStore.onLogin((await res.json()) as PrivateUserProfile);
+        } else {
+            this.token = null;
+            RootStore.onLogout();
+        }
     }
 })();
 

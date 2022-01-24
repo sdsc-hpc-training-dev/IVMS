@@ -1,0 +1,40 @@
+.edit-profile i {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    cursor: pointer;
+    font-size: 20px;
+}
+
+.edit-profile i:hover {
+    color: #3e3b57;
+}
+
+.edit-profile h3 {
+    width: 100%;
+    font-size: 24px;
+    text-align: center;
+}
+
+.edit-panel {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.edit-panel img {
+    align-self: flex-start;
+}
+
+.edit-inputs {
+    display: flex;
+    flex-direction: column;
+}
+
+.edit-inputs > * {
+    margin: 15px;
+}
+
+.edit-inputs > label {
+    margin: 2px 15px;
+}

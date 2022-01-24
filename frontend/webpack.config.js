@@ -1,7 +1,7 @@
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const path = require('path');
 
-module.exports = {
+module.exports = (env, argv) => ({
     entry: './src/index.tsx',
     output: {
         filename: 'main.js',
@@ -34,13 +34,29 @@ module.exports = {
                                 },
                             },
                             target: 'es2020',
+                            minify:
+                                argv.mode === 'production'
+                                    ? { compress: true, mangle: true }
+                                    : undefined,
                         },
                     },
                 },
             },
             {
-                test: /\.(glsl|skel)$/,
-                type: 'asset/source',
+                test: /\.css$/i,
+                use: ['style-loader', 'css-loader'],
+            },
+            {
+                test: /\.svg$/,
+                use: ['@svgr/webpack'],
+            },
+            {
+                test: /\.(png|jpe?g|gif)$/i,
+                use: [
+                    {
+                        loader: 'file-loader',
+                    },
+                ],
             },
         ],
     },
@@ -50,4 +66,4 @@ module.exports = {
             filename: 'index.html',
         }),
     ],
-};
+});
