@@ -56,6 +56,7 @@ type ResProxy<T = Uint8Array> = {
     ) => void;
     json: (data, status: string) => void;
     redirect: (to: string) => void;
+    streamFrom: (file: string, stard: number, end: number, total: number) => void;
 };
 
 type uWSReq = import('uWebSockets.js').HttpRequest;
@@ -72,7 +73,7 @@ type APIEndpoint<T = Uint8Array> = {
         timeout?: number;
         jsonSchema?: import('joi').Schema<T>;
     };
-    handle: (this: App, res: ResProxy<T>, req: uWSReq) => void;
+    handle: (this: App, proxy: ResProxy<T>, req: uWSReq) => void;
 };
 
 type OAuth2Provider = 'google';

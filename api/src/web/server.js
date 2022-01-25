@@ -137,6 +137,7 @@ module.exports = class WebServer {
                 try {
                     this.registerRoute(file);
                 } catch (e) {
+                    console.error(e);
                     logger.error(`Failed to bind route module at "${file}"`);
                 }
             }
